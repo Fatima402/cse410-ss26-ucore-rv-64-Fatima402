@@ -1,5 +1,7 @@
 #include "loader.h"
 #include "defs.h"
+#include "proc.h"
+#include "timer.h"
 #include "trap.h"
 
 static uint64 app_num;
@@ -48,9 +50,10 @@ int run_all_app()
 		trapframe->epc = entry;
 		trapframe->sp = (uint64)p->ustack + USER_STACK_SIZE;
 		p->state = RUNNABLE;
-		/*
-		* LAB1: you may need to initialize your new fields of proc here
-		*/
+
+		p->task_status = Ready;
+		memset(p->syscall_times, 0, sizeof(p->syscall_times));
+		p->start_time = get_cycle() / (CPU_FREQ / 1000);
 	}
 	return 0;
 }

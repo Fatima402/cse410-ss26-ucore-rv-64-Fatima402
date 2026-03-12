@@ -1,6 +1,7 @@
 #include "proc.h"
 #include "defs.h"
 #include "loader.h"
+#include "timer.h"
 #include "trap.h"
 
 struct proc pool[NPROC];
@@ -31,9 +32,13 @@ void proc_init(void)
 		p->kstack = (uint64)kstack[p - pool];
 		p->ustack = (uint64)ustack[p - pool];
 		p->trapframe = (struct trapframe *)trapframe[p - pool];
+
 		/*
-		* LAB1: you may need to initialize your new fields of proc here
-		*/
+		 * LAB1: initialize new fields
+		 */
+		p->task_status = UnInit;
+		memset(p->syscall_times, 0, sizeof(p->syscall_times));
+		p->start_time = 0;
 	}
 	idle.kstack = (uint64)boot_stack_top;
 	idle.pid = 0;
@@ -67,23 +72,22 @@ found:
 	memset((void *)p->kstack, 0, PAGE_SIZE);
 	p->context.ra = (uint64)usertrapret;
 	p->context.sp = p->kstack + PAGE_SIZE;
+
+	p->task_status = Ready;
+	memset(p->syscall_times, 0, sizeof(p->syscall_times));
+	p->start_time = 0;
+
 	return p;
 }
 
-// Scheduler never returns.  It loops, doing:
-//  - choose a process to run.
-//  - swtch to start running that process.
-//  - eventually that process transfers control
-//    via swtch back to the scheduler.
+// Scheduler never returns.
 void scheduler(void)
 {
 	struct proc *p;
 	for (;;) {
 		for (p = pool; p < &pool[NPROC]; p++) {
 			if (p->state == RUNNABLE) {
-				/*
-				* LAB1: you may need to init proc start time here
-				*/
+				p->task_status = Running;
 				p->state = RUNNING;
 				current_proc = p;
 				swtch(&idle.context, &p->context);
@@ -92,13 +96,7 @@ void scheduler(void)
 	}
 }
 
-// Switch to scheduler.  Must hold only p->lock
-// and have changed proc->state. Saves and restores
-// intena because intena is a property of this
-// kernel thread, not this CPU. It should
-// be proc->intena and proc->noff, but that would
-// break in the few places where a lock is held but
-// there's no process.
+// Switch to scheduler.
 void sched(void)
 {
 	struct proc *p = curr_proc();
@@ -110,7 +108,9 @@ void sched(void)
 // Give up the CPU for one scheduling round.
 void yield(void)
 {
-	current_proc->state = RUNNABLE;
+	struct proc *p = curr_proc();
+	p->task_status = Ready;
+	p->state = RUNNABLE;
 	sched();
 }
 
@@ -118,6 +118,8 @@ void yield(void)
 void exit(int code)
 {
 	struct proc *p = curr_proc();
+	p->task_status = Exited;
+
 	infof("proc %d exit with %d", p->pid, code);
 	p->state = UNUSED;
 	finished();
