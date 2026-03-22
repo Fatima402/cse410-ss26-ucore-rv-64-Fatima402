@@ -1,6 +1,7 @@
 #include "proc.h"
 #include "defs.h"
 #include "loader.h"
+#include "timer.h"
 #include "trap.h"
 #include "vm.h"
 
@@ -12,6 +13,11 @@ extern char boot_stack_top[];
 struct proc *current_proc;
 struct proc idle;
 
+static uint64 time_in_ms()
+{
+	return get_cycle() / (CPU_FREQ / 1000);
+}
+
 int threadid()
 {
 	return curr_proc()->pid;
@@ -21,7 +27,6 @@ struct proc *curr_proc()
 {
 	return current_proc;
 }
-
 // initialize the proc table at boot time.
 void proc_init(void)
 {
@@ -29,10 +34,20 @@ void proc_init(void)
 	for (p = pool; p < &pool[NPROC]; p++) {
 		p->state = UNUSED;
 		p->kstack = (uint64)kstack[p - pool];
+		
 		p->trapframe = (struct trapframe *)trapframe[p - pool];
+
 		/*
-		* LAB1: you may need to initialize your new fields of proc here
-		*/
+		 * LAB1: initialize new fields
+		 */
+		p->task_status = UnInit;  
+		p->start_time = 0;
+		memset(p->syscall_times, 0, sizeof(p->syscall_times));
+
+		// ch4 fields
+		p->pagetable = 0;
+		p->ustack = 0;
+		p->max_page = 0;
 	}
 	idle.kstack = (uint64)boot_stack_top;
 	idle.pid = 0;
@@ -64,11 +79,18 @@ found:
 	p->pagetable = 0;
 	p->ustack = 0;
 	p->max_page = 0;
+
 	memset(&p->context, 0, sizeof(p->context));
+	memset(p->trapframe, 0, TRAP_PAGE_SIZE);
 	memset((void *)p->kstack, 0, KSTACK_SIZE);
-	memset((void *)p->trapframe, 0, TRAP_PAGE_SIZE);
+
 	p->context.ra = (uint64)usertrapret;
 	p->context.sp = p->kstack + KSTACK_SIZE;
+
+	p->task_status = Ready;
+	p->start_time = 0;
+	memset(p->syscall_times, 0, sizeof(p->syscall_times));
+
 	return p;
 }
 
@@ -77,15 +99,16 @@ found:
 //  - swtch to start running that process.
 //  - eventually that process transfers control
 //    via swtch back to the scheduler.
+// Scheduler never returns.
 void scheduler(void)
 {
 	struct proc *p;
 	for (;;) {
 		for (p = pool; p < &pool[NPROC]; p++) {
 			if (p->state == RUNNABLE) {
-				/*
-				* LAB1: you may need to init proc start time here
-				*/
+				if (p->start_time == 0)
+					p->start_time = time_in_ms();
+				p->task_status = Running;
 				p->state = RUNNING;
 				current_proc = p;
 				swtch(&idle.context, &p->context);
@@ -113,12 +136,14 @@ void sched(void)
 void yield(void)
 {
 	current_proc->state = RUNNABLE;
+	current_proc->task_status = Ready;
 	sched();
 }
 
 void freeproc(struct proc *p)
 {
 	p->state = UNUSED;
+	p->task_status = Exited;
 	// uvmfree(p->pagetable, p->max_page);
 }
 
