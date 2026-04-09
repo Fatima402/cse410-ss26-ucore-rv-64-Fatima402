@@ -40,7 +40,10 @@ uint64 sys_sched_yield()
 	yield();
 	return 0;
 }
-
+// Updated for Project 2:
+// Cannot directly write to user pointer anymore.
+// Use copyout to safely copy time data to user memory.
+////uses copy alt to usewith virtual memory 
 uint64 sys_gettimeofday(TimeVal *val, int _tz) // TODO: implement sys_gettimeofday in pagetable. (VA to PA)
 {
 	struct proc *p = curr_proc();
@@ -66,6 +69,11 @@ uint64 sys_gettimeofday(TimeVal *val, int _tz) // TODO: implement sys_gettimeofd
 /*
 * LAB1: you may need to define sys_task_info here
 */
+// Project 2:
+// Returns information about the current task.
+// Includes status, syscall counts, and running time.
+// Uses copyout to safely send data to user space.
+//uses copyout to safely send data to user space
 uint64 sys_task_info(TaskInfo *info)
 {
 	struct proc *p = curr_proc();
@@ -85,7 +93,11 @@ uint64 sys_task_info(TaskInfo *info)
 
 	return 0;
 } 
-
+// Project 2:
+// mmap system call
+// Allocates memory pages and maps them into the process address space.
+// Converts user permissions into page table flags (R/W/X).
+// Uses kalloc to allocate physical memory and mappages to map it.
 uint64 sys_mmap(uint64 start, uint64 len, int port, int flag, int fd)
 {
 	struct proc *p = curr_proc();
@@ -109,7 +121,7 @@ uint64 sys_mmap(uint64 start, uint64 len, int port, int flag, int fd)
 		perm |= PTE_X;
 
 	size = PGROUNDUP(len);
-
+//allocate physical page and map t virtual memory 
 	for (va = start; va < start + size; va += PGSIZE) {
 		void *pa = kalloc();
 		if (pa == 0)
@@ -129,7 +141,10 @@ uint64 sys_mmap(uint64 start, uint64 len, int port, int flag, int fd)
 
 	return 0;
 }
-
+// Project 2:
+// munmap system call
+// Unmaps previously allocated memory pages from the process.
+// Frees physical memory and removes mappings.
 uint64 sys_munmap(uint64 start, uint64 len)
 {
 	struct proc *p = curr_proc();
