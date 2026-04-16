@@ -12,7 +12,9 @@
 #include "string.h"
 #include "types.h"
 #include "vm.h"
-
+int sys_fstat(int fd, uint64 stat);
+int sys_linkat(int olddirfd, uint64 oldpath, int newdirfd, uint64 newpath, uint64 flags);
+int sys_unlinkat(int dirfd, uint64 name, uint64 flags);
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x) / sizeof((x)[0]))
 #define MIN(a, b) (a < b ? a : b)

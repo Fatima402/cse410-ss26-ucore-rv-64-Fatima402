@@ -114,6 +114,7 @@ struct inode *ialloc(uint dev, short type)
 		if (dip->type == 0) { // a free inode
 			memset(dip, 0, sizeof(*dip));
 			dip->type = type;
+			dip->nlink = 1; // Project 4
 			bwrite(bp);
 			brelse(bp);
 			return iget(dev, inum);
@@ -135,6 +136,7 @@ void iupdate(struct inode *ip)
 	bp = bread(ip->dev, IBLOCK(ip->inum, sb));
 	dip = (struct dinode *)bp->data + ip->inum % IPB;
 	dip->type = ip->type;
+	dip->nlink = ip->nlink;
 	dip->size = ip->size;
 	// LAB4: you may need to update link count here
 	memmove(dip->addrs, ip->addrs, sizeof(ip->addrs));
@@ -189,6 +191,7 @@ void ivalid(struct inode *ip)
 		dip = (struct dinode *)bp->data + ip->inum % IPB;
 		ip->type = dip->type;
 		ip->size = dip->size;
+		ip->nlink = dip->nlink;
 		// LAB4: You may need to get lint count here
 		memmove(ip->addrs, dip->addrs, sizeof(ip->addrs));
 		brelse(bp);
@@ -208,7 +211,7 @@ void ivalid(struct inode *ip)
 void iput(struct inode *ip)
 {
 	// LAB4: Unmark the condition and change link count variable name (nlink) if needed
-	if (ip->ref == 1 && ip->valid && 0 /*&& ip->nlink == 0*/) {
+	if (ip->ref == 1 && ip->valid && ip->nlink == 0) {
 		// inode has no links and no other references: truncate and free.
 		itrunc(ip);
 		ip->type = 0;
@@ -380,7 +383,34 @@ struct inode *dirlookup(struct inode *dp, char *name, uint *poff)
 
 	return 0;
 }
+int dirlink(struct inode *dp, char *name, uint inum)
+{
+	int off;
+	struct dirent de;
+	struct inode *ip;
 
+	// Check that name is not present.
+	if ((ip = dirlookup(dp, name, 0)) != 0) {
+		iput(ip);
+		return -1;
+	}
+
+	// Look for an empty dirent.
+	for (off = 0; off < dp->size; off += sizeof(de)) {
+		if (readi(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
+			panic("dirlink read");
+		if (de.inum == 0)
+			break;
+	}
+
+	strncpy(de.name, name, DIRSIZ);
+	de.inum = inum;
+
+	if (writei(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
+		panic("dirlink");
+
+	return 0;
+}
 //Show the filenames of all files in the directory
 int dirls(struct inode *dp)
 {
@@ -403,31 +433,28 @@ int dirls(struct inode *dp)
 }
 
 // Write a new directory entry (name, inum) into the directory dp.
-int dirlink(struct inode *dp, char *name, uint inum)
+int dirunlink(struct inode *dp, char *name)
 {
-	int off;
+	uint off;
 	struct dirent de;
-	struct inode *ip;
-	// Check that name is not present.
-	if ((ip = dirlookup(dp, name, 0)) != 0) {
-		iput(ip);
-		return -1;
-	}
 
-	// Look for an empty dirent.
+	if (dp->type != T_DIR)
+		panic("dirunlink not DIR");
+
 	for (off = 0; off < dp->size; off += sizeof(de)) {
 		if (readi(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
-			panic("dirlink read");
+			panic("dirunlink read");
 		if (de.inum == 0)
-			break;
+			continue;
+		if (strncmp(name, de.name, DIRSIZ) == 0) {
+			memset(&de, 0, sizeof(de));
+			if (writei(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
+				panic("dirunlink write");
+			return 0;
+		}
 	}
-	strncpy(de.name, name, DIRSIZ);
-	de.inum = inum;
-	if (writei(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
-		panic("dirlink");
-	return 0;
+	return -1;
 }
-
 // LAB4: You may want to add dirunlink here
 
 //Return the inode of the root directory

@@ -177,19 +177,105 @@ uint64 sys_close(int fd)
 	return 0;
 }
 
-int sys_fstat(int fd,uint64 stat){
-	//TODO: your job is to complete the syscall
-	return -1;
+int sys_fstat(int fd, uint64 stat)
+{
+	if (fd < 0 || fd >= FD_BUFFER_SIZE)
+		return -1;
+
+	struct proc *p = curr_proc();
+	struct file *f = p->files[fd];
+	Stat st;
+
+	if (f == 0 || f->type != FD_INODE)
+		return -1;
+
+	ivalid(f->ip);
+
+	st.dev = f->ip->dev;
+	st.ino = f->ip->inum;
+	st.mode = (f->ip->type == T_DIR) ? DIR : FILE;
+	st.nlink = f->ip->nlink;
+	memset(st.pad, 0, sizeof(st.pad));
+
+	if (copyout(p->pagetable, stat, (char *)&st, sizeof(Stat)) < 0)
+		return -1;
+
+	return 0;
 }
 
-int sys_linkat(int olddirfd, uint64 oldpath, int newdirfd, uint64 newpath, uint64 flags){
-	//TODO: your job is to complete the syscall
-	return -1;
+int sys_linkat(int olddirfd, uint64 oldpath, int newdirfd, uint64 newpath, uint64 flags)
+{
+	(void)olddirfd;
+	(void)newdirfd;
+	(void)flags;
+
+	struct proc *p = curr_proc();
+	char oldname[MAXPATH], newname[MAXPATH];
+	struct inode *ip, *dp;
+
+	if (copyinstr(p->pagetable, oldname, oldpath, MAXPATH) < 0)
+		return -1;
+	if (copyinstr(p->pagetable, newname, newpath, MAXPATH) < 0)
+		return -1;
+
+	if (strncmp(oldname, newname, DIRSIZ) == 0)
+		return -1;
+
+	ip = namei(oldname);
+	if (ip == 0)
+		return -1;
+
+	ivalid(ip);
+	dp = root_dir();
+	ivalid(dp);
+
+	if (dirlink(dp, newname, ip->inum) < 0) {
+		iput(dp);
+		iput(ip);
+		return -1;
+	}
+
+	ip->nlink++;
+	iupdate(ip);
+
+	iput(dp);
+	iput(ip);
+	return 0;
 }
 
-int sys_unlinkat(int dirfd, uint64 name, uint64 flags){
-	//TODO: your job is to complete the syscall
-	return -1;
+int sys_unlinkat(int dirfd, uint64 name, uint64 flags)
+{
+	(void)dirfd;
+	(void)flags;
+
+	struct proc *p = curr_proc();
+	char path[MAXPATH];
+	struct inode *ip, *dp;
+
+	if (copyinstr(p->pagetable, path, name, MAXPATH) < 0)
+		return -1;
+
+	ip = namei(path);
+	if (ip == 0)
+		return -1;
+
+	ivalid(ip);
+	dp = root_dir();
+	ivalid(dp);
+
+	if (dirunlink(dp, path) < 0) {
+		iput(dp);
+		iput(ip);
+		return -1;
+	}
+
+	if (ip->nlink > 0)
+		ip->nlink--;
+	iupdate(ip);
+
+	iput(dp);
+	iput(ip);
+	return 0;
 }
 
 extern char trap_page[];
@@ -246,7 +332,8 @@ void syscall()
 	    ret = sys_linkat(args[0],args[1],args[2],args[3],args[4]);
 		break;
 	case SYS_unlinkat:
-	    ret = sys_unlinkat(args[0],args[1],args[2]);
+		ret = sys_unlinkat(args[0], args[1], args[2]);
+		break;
 	case SYS_spawn:
 		ret = sys_spawn(args[0]);
 		break;
