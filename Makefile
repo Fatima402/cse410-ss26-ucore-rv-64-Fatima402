@@ -31,7 +31,7 @@ CFLAGS += -mcmodel=medany
 CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
 CFLAGS += -I$K
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
-
+CFLAGS += -D INIT_PROC=\"$(INIT_PROC)\"
 LOG ?= error
 
 ifeq ($(LOG), error)

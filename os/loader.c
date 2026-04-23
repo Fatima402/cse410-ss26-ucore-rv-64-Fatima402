@@ -3,7 +3,7 @@
 #include "file.h"
 #include "trap.h"
 
-extern char INIT_PROC[];
+//extern char INIT_PROC[];
 
 int bin_loader(struct inode *ip, struct proc *p)
 {
