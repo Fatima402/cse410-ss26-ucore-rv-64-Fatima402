@@ -7,6 +7,10 @@
 #include "timer.h"
 #include "trap.h"
 
+// Project 5: deadlock detection algorithm.
+// It checks whether all threads can eventually finish given the current
+// available resources, allocations, and requests.
+
 uint64 console_write(uint64 va, uint64 len)
 {
 	struct proc *p = curr_proc();
@@ -296,7 +300,7 @@ static int deadlock_detect(const int available[LOCK_POOL_SIZE],
 	}
 	return 0;
 }
-
+// Project 5: initialize deadlock tracking for a new mutex resource.
 int sys_mutex_create(int blocking)
 {
 	struct mutex *m = mutex_create(blocking);
@@ -313,7 +317,8 @@ int sys_mutex_create(int blocking)
 	debugf("create mutex %d", mutex_id);
 	return mutex_id;
 }
-
+// Project 5: record the thread's mutex request, run deadlock detection,
+// and only allow the lock if it does not create a deadlock.
 int sys_mutex_lock(int mutex_id)
 {
 	if (mutex_id < 0 || mutex_id >= curr_proc()->next_mutex_id) {
@@ -347,7 +352,7 @@ int sys_mutex_lock(int mutex_id)
 
 	return 0;
 }
-
+// Project 5: update deadlock tracking when a mutex is released.
 int sys_mutex_unlock(int mutex_id)
 {
 	if (mutex_id < 0 || mutex_id >= curr_proc()->next_mutex_id) {
@@ -368,7 +373,7 @@ int sys_mutex_unlock(int mutex_id)
 
 	return 0;
 }
-
+// Project 5: initialize deadlock tracking for a semaphore with its starting resource count.
 int sys_semaphore_create(int res_count)
 {
 	struct semaphore *s = semaphore_create(res_count);
@@ -385,7 +390,7 @@ int sys_semaphore_create(int res_count)
 	debugf("create semaphore %d", sem_id);
 	return sem_id;
 }
-
+// Project 5: release one semaphore unit and update deadlock tracking state.
 int sys_semaphore_up(int semaphore_id)
 {
 	if (semaphore_id < 0 ||
@@ -407,7 +412,8 @@ int sys_semaphore_up(int semaphore_id)
 
 	return 0;
 }
-
+// Project 5: record a semaphore request, check for deadlock,
+// and only proceed if the request is safe.
 int sys_semaphore_down(int semaphore_id)
 {
 	if (semaphore_id < 0 ||
@@ -481,6 +487,7 @@ int sys_condvar_wait(int cond_id, int mutex_id)
 }
 
 // LAB5: enable or disable deadlock detection for current process
+// Project 5: enable or disable deadlock detection for the current process.
 int sys_enable_deadlock_detect(int enabled)
 {
 	curr_proc()->deadlock_detect_enabled = enabled ? 1 : 0;
