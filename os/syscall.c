@@ -176,6 +176,8 @@ uint64 sys_close(int fd)
 	p->files[fd] = 0;
 	return 0;
 }
+// Project 4: return file metadata to user space.
+// This reads the inode info for an open file descriptor and copies it out.
 
 int sys_fstat(int fd, uint64 stat)
 {
@@ -202,6 +204,9 @@ int sys_fstat(int fd, uint64 stat)
 
 	return 0;
 }
+
+// Project 4: create a hard link to an existing file.
+// This adds a new directory entry that points to the same inode.
 
 int sys_linkat(int olddirfd, uint64 oldpath, int newdirfd, uint64 newpath, uint64 flags)
 {
@@ -242,6 +247,8 @@ int sys_linkat(int olddirfd, uint64 oldpath, int newdirfd, uint64 newpath, uint6
 	iput(ip);
 	return 0;
 }
+// Project 4: remove a directory entry for a file.
+// This decreases the inode link count and the file is deleted only if nlink becomes 0.
 
 int sys_unlinkat(int dirfd, uint64 name, uint64 flags)
 {

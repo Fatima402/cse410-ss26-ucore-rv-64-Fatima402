@@ -102,6 +102,8 @@ static struct inode *iget(uint dev, uint inum);
 // Allocate an inode on device dev.
 // Mark it as allocated by  giving it type `type`.
 // Returns an allocated and referenced inode.
+// Project 4: initialize a new inode with link count 1.
+// A newly created file starts with one directory reference.
 struct inode *ialloc(uint dev, short type)
 {
 	int inum;
@@ -128,6 +130,7 @@ struct inode *ialloc(uint dev, short type)
 // Copy a modified in-memory inode to disk.
 // Must be called after every change to an ip->xxx field
 // that lives on disk.
+// Project 4: write inode metadata back to disk, including link count.
 void iupdate(struct inode *ip)
 {
 	struct buf *bp;
@@ -182,6 +185,7 @@ struct inode *idup(struct inode *ip)
 }
 
 // Reads the inode from disk if necessary.
+// Project 4: load inode metadata from disk into memory, including link count.
 void ivalid(struct inode *ip)
 {
 	struct buf *bp;
@@ -208,6 +212,7 @@ void ivalid(struct inode *ip)
 // to it, free the inode (and its content) on disk.
 // All calls to iput() must be inside a transaction in
 // case it has to free the inode.
+// Project 4: only free the inode when there are no links left and no active references.
 void iput(struct inode *ip)
 {
 	// LAB4: Unmark the condition and change link count variable name (nlink) if needed
